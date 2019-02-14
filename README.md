@@ -1,4 +1,4 @@
-# Capstone_project-Derivatives_analyzer
+# Capstone-project-Derivatives-analyzer
 
 This is a Python Dash based app that allows the user to:
 1) build a structure of plain vanilla derivatives (European calls and puts) on a single underlying (e.g. SPX). 
