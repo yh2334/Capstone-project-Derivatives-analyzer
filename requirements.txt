@@ -32,7 +32,6 @@ pandas==0.24.2
 pandas-datareader==0.7.0
 plotly==2.4.1
 py-vollib==1.0.1
-pyodbc==4.0.24
 requests==2.19.1
 requests-file==1.4.3
 requests-ftp==0.3.1
