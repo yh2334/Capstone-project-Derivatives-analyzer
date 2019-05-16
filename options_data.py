@@ -12,10 +12,6 @@ def optionsdata(ticker):
         DATA = json.loads(DATA)
 
     Expirations = DATA["optionChain"]['result'][0]['expirationDates']
-    Expiration_Dates = pd.to_datetime(Expirations, unit='s')
-    Strikes = pd.Series(DATA["optionChain"]['result'][0]['strikes'])
-    strikes = DATA["optionChain"]['result'][0]['strikes']
-    ###collecting stock data####
     index = []
     entry = []
     for a in DATA["optionChain"]['result'][0]['quote'].items():
@@ -52,7 +48,7 @@ def optionsdata(ticker):
     Calls = clean_options_df(Calls, spot, 'Call')
     Puts = clean_options_df(Puts, spot, 'Put')
 
-    data = pd.concat([Calls, Puts], axis=0)
+    data = pd.concat([Calls, Puts], axis=0, sort=False)
     data = data.reset_index()
     return data
 

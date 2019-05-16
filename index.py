@@ -7,11 +7,11 @@ import pandas as pd
 from apps import basics, hedging, stresstest, greeks, impliedvolatility
 from app import app, df_to_table, Graph, update_graph, indicator, marks
 from strategy import stmanager, columns
-from tickers import data
+from tickers import data, tickers
+from options_data import optionsdata
 
 options_data = data
-
-
+datatable_columns = [{'name': columns[i]} for i in range(len(columns))]
 
 def modal():
     return   html.Div(
@@ -29,27 +29,23 @@ def modal():
                     className="row",
                     style={"borderBottom": "1px solid #C8D4E3"},),
 
-                    dash_table.DataTable(
-                        id='data_table',
-                        columns=[{"name": i, "id": i, "deletable": True} for i in options_data.columns],
-                        data=options_data.to_dict('records'),
-                        filtering=True,
-                        sorting=True,
-                        sorting_type="multi",
-                        row_selectable="single",
-                        selected_rows=[],
-                        pagination_mode="fe",
-                        pagination_settings={
-                            "displayed_pages": 1,
-                            "current_page": 0,
-                            "page_size": 10,
-                        },
-                        navigation="page",
+                dash_table.DataTable(
+                    id='data_table',
+                    columns=[{"name": i, "id": i, "deletable": True} for i in options_data.columns],
+                    #data=options_data.to_dict('records'),
+                    filtering=True,
+                    sorting=True,
+                    sorting_type="multi",
+                    row_selectable="single",
+                    selected_rows=[],
+                    pagination_mode="fe",
+                    pagination_settings={"displayed_pages": 1, "current_page": 0,"page_size": 10,},
+                    navigation="page",
                     ),
 
-                    # submit button
-                    html.Div(html.Span("Long", id="long_option", n_clicks=0), className="button button--primary add"),
-                    html.Div(html.Span("Short", id="short_option", n_clicks=0), className="button button--primary add"),
+                # submit button
+                html.Div(html.Span("Long", id="long_option", n_clicks=0), className="button button--primary add"),
+                html.Div(html.Span("Short", id="short_option", n_clicks=0), className="button button--primary add"),
                 ],
                 className="modal-content",
                 style={"textAlign": "center"},
@@ -96,29 +92,38 @@ app.layout = html.Div(
 
 
         html.Div([
+            html.Div([
+                dcc.Dropdown(id='ticker',options=tickers, value='TSLA',),],
+                className='two columns',
+                style={'margin-left': '40px', 'width':'127px'}
+            ),
+            html.Div(
+                html.Button("Download data", id="download_button", n_clicks=0,),
+                className="two columns",
+                style={'margin-left': '20px', 'width':'127px'}, #'backgroundColor': 'rgb(17,157,255)'
+            ),
             # add option button
             html.Div(
                 html.Button("Add new", id="add_button", n_clicks=0,),
                 className="two columns",
-                style={'margin-left': '40px', 'width':'127px'},#'backgroundColor': 'rgb(17,157,255)'
+                style={'margin-left': '50px', 'width':'127px'}, #'backgroundColor': 'rgb(17,157,255)'
             ),
             # clear button
             html.Div(
                 html.Button("Clear", id="clear_button", n_clicks=0,),
                 className="two columns",
-                style={'margin-left': '20px'}
             ),
             # help button
             html.Div(
-                html.Button("Help", id='help_button'),
-                style={'float':'right', 'margin-right':'40px'}
+                html.A('Help', id='help_link', href='https://github.com/yh2334/Capstone-project-Derivatives-analyzer/blob/master/help_guide.pdf'),
+                style={'float':'right', 'margin-right':'40px', 'font-size': '1.5em'}
             )
             ],
             className = "row",
             style = {"marginBottom": "10"},
         ),
 
-        # strategy tble
+        # strategy table
         html.Div([html.P('My current strategy: ', style = {'margin-left': '40px'}),
                   html.Div(
                       id="strategy_table",
@@ -131,6 +136,7 @@ app.layout = html.Div(
 
 
         modal(),
+        html.Div(pd.DataFrame().to_json(orient="split"),  id='data_container',style={'display': 'none'}),
         html.Div(stmanager.get_options().to_json(orient="split"), id="options_df", style={"display": "none"},),
 
         # Tab content
@@ -171,14 +177,17 @@ short_num = 0
 # add option to the strategy
 @app.callback(Output('options_df', 'children'),
               [Input('data_table', 'selected_rows'),
+               Input('data_table', 'data'),
                Input("long_option", "n_clicks"),
                Input("short_option", "n_clicks"),])
-def update_graph(selected_row, n1, n2):
+def update_graph(selected_row, temp_data, n1, n2):
     global long_num
     global short_num
+    t = pd.DataFrame()
     if n1 > long_num:
         long_num = long_num + 1
-        temp = options_data.iloc[selected_row[0]].to_dict()
+        temp_data = t.from_records(temp_data)
+        temp = temp_data.iloc[selected_row[0]].to_dict()
         temp['Long_Short_Flag'] = 1
         print(temp)
         stmanager.add_option(temp)
@@ -187,7 +196,8 @@ def update_graph(selected_row, n1, n2):
         return df.to_json(orient="split")
     elif n2 > short_num:
         short_num = short_num + 1
-        temp = options_data.iloc[selected_row[0]].to_dict()
+        temp_data = t.from_records(temp_data)
+        temp = temp_data.iloc[selected_row[0]].to_dict()
         temp['Long_Short_Flag'] = -1
         print(temp)
         stmanager.add_option(temp)
@@ -223,6 +233,28 @@ def clear_strategy_callback(n):
         df = stmanager.get_options()
         print(df)
         return df.to_json(orient="split")
+
+
+@app.callback(Output('data_container', 'children'),
+            [Input('ticker', 'value'),
+             Input('download_button', 'n_clicks')])
+def download_data_callback(ticker, n):
+    df = optionsdata(ticker)
+    df = df[['ask', 'bid', 'contractSymbol', 'impliedVolatility', 'strike', 'days to expiration', 'Spot Price', 'Call_Put_Flag', ]]
+    print(ticker, ' data downloaded')
+    return df.to_json(orient="split")
+
+
+@app.callback(Output('data_table', 'data'),
+            [Input('data_container', 'children'),])
+def download_data_callback(df):
+    df = pd.read_json(df, orient="split")
+    df['strike'] = round(df['strike'], 2)
+    df['Spot Price'] = round(df['Spot Price'], 2)
+    df['impliedVolatility'] = round(df['impliedVolatility'], 4)
+    df['ask'] = round(df['ask'], 2)
+    df['bid'] = round(df['bid'], 2)
+    return df.to_dict('records')
 
 
 if __name__ == "__main__":

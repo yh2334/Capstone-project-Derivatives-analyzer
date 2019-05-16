@@ -23,5 +23,3 @@ class StrategyManager():
 
 
 stmanager = StrategyManager()
-query = [0, 0, 'AAPL', 0 ,0, 0, 0, 'Call', 0]
-stmanager.add_option(query)
