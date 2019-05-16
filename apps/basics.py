@@ -28,7 +28,7 @@ def update_graph(xvalues, yvalues, xtitle, ytitle):
 
 def options_payoff(Call_Put_Flag, Long_Short_Flag, strike_price, spot, premium):
     sT = np.arange(spot - 50, spot + 50, 1)
-    if Long_Short_Flag == 'Long':
+    if Long_Short_Flag == 1:
         if Call_Put_Flag == 'Call':
             def payoff(sT, strike_price, premium):
                 return np.where(sT > strike_price, sT - strike_price, 0) - premium
@@ -50,6 +50,7 @@ def options_payoff(Call_Put_Flag, Long_Short_Flag, strike_price, spot, premium):
 
 
 def payoff_intrinsicValue(df):
+    spot = 0
     payoff = np.zeros(100)
     premium_paid = 0
     for i in range(len(df)):

@@ -12,12 +12,39 @@ import dash_html_components as html
 from tickers import tickers
 from app import app
 from datetime import datetime
-from py_vollib.black_scholes_merton.implied_volatility import *
 from options_data import optionsdata
+from scipy.stats import norm
+from math import log, sqrt, exp
+from scipy import optimize
+
+
+def CND(X):
+    return float(norm.cdf(X))
+
+
+def BlackScholes(v, CallPutFlag, S, X, T, r):
+    try:
+        d1 = (log(S / X) + (r + v * v / 2.) * T) / (v * sqrt(T))
+        d2 = d1 - v * sqrt(T)
+
+        if CallPutFlag == 'c':
+            return S * CND(d1) - X * exp(-r * T) * CND(d2)
+
+        else:
+            return X * exp(-r * T) * CND(-d2) - S * CND(-d1)
+
+    except:
+        return 0
+
+
+def calc_impl_vol(price, type, underlying, strike, time, rf):
+    f = lambda x: BlackScholes(x, CallPutFlag=type, S=underlying, X=strike, T=time, r=rf) - price
+    return optimize.brentq(f, 0., 5.)
+
 
 
 # Get volatility matrix
-def impliedVolatility_calculation(data,  call=True, put=False, rf_interest_rate=0.0, dividend_rate=0.0, market=True):
+def impliedVolatility_calculation(data,  call=True, put=False, rf_interest_rate=0.0, market=True):
     if call and put:
         raise Exception('Must specify either call or put.')
     if not call and not put:
@@ -53,16 +80,14 @@ def impliedVolatility_calculation(data,  call=True, put=False, rf_interest_rate=
         K = df['strike'][i]
         t = exp
         r = rf_interest_rate / 100
-        q = dividend_rate / 100
         try:
-            val = implied_volatility(P, S, K, t, r, q, flag)
-            vals.append([float(df['strike'][i]),exp, val])
+            impl = calc_impl_vol(P, flag, S, K, t, r)
+            vals.append([K, t, impl])
         except:
             val = 0.0
-            vals.append([float(df['strike'][i]),exp, val])
+            vals.append([K, t, val])
 
     vals = array(vals).T
-
     return vals[0], vals[1], vals[2]
 
 
@@ -123,18 +148,6 @@ layout = html.Div([
                     ],
                         style={'display': 'inline-block'}
                     ),
-                    html.Div([
-                        html.Label('Dividend rate (%)'),
-                        dcc.Input(
-                            id='div_input',
-                            placeholder='Dividend interest rate',
-                            type='number',
-                            value='0.0',
-                            style={'width': '125'}
-                        )
-                    ],
-                        style={'display': 'inline-block'}
-                    ),
                 ],
                     style={'display': 'inline-block', 'position': 'relative', 'bottom': '10'}
                 )
@@ -176,16 +189,8 @@ layout = html.Div([
         ),
 
 
-        html.P(
-            hidden='',
-            id='raw_container',
-            style={'display': 'none'}
-        ),
-        html.P(
-            hidden='',
-            id='filtered_container',
-            style={'display': 'none'}
-        )
+        html.P(hidden='', id='raw_container',style={'display': 'none'}),
+        html.P(hidden='',id='filtered_container',style={'display': 'none'})
     ],
     style={
         'width': '85%',
@@ -205,7 +210,6 @@ layout = html.Div([
 @app.callback(Output('raw_container', 'hidden'),
               [Input('ticker_dropdown', 'value')])
 def cache_raw_data(ticker):
-
     global raw_data
     raw_data = optionsdata(ticker)
     print('Loaded raw data')
@@ -217,16 +221,14 @@ def cache_raw_data(ticker):
               [Input('raw_container', 'hidden'),
                Input('option_selector', 'value'),
                Input('market_selector', 'value'),
-               Input('rf_input', 'value'),
-               Input('div_input', 'value')])  # To be split
-def cache_filtered_data(hidden, call_or_put, market, rf_interest_rate, dividend_rate):
+               Input('rf_input', 'value'),])  # To be split
+def cache_filtered_data(hidden, call_or_put, market, rf_interest_rate):
 
     if hidden == 'loaded':
         if call_or_put == 'call':
-            s, p, i = impliedVolatility_calculation(raw_data, call=True, put=False,rf_interest_rate=float(rf_interest_rate),dividend_rate=float(dividend_rate),market=market)
+            s, p, i = impliedVolatility_calculation(raw_data, call=True, put=False,rf_interest_rate=float(rf_interest_rate), market=market)
         else:
-            s, p, i = impliedVolatility_calculation(raw_data, call=False, put=True, rf_interest_rate=float(rf_interest_rate),
-                                        dividend_rate=float(dividend_rate), market=market)
+            s, p, i = impliedVolatility_calculation(raw_data, call=False, put=True, rf_interest_rate=float(rf_interest_rate),market=market)
 
         df = pd.DataFrame([s, p, i]).T
         global filtered_data
