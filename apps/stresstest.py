@@ -20,9 +20,11 @@ def stressTestForOne(df, fre, spot, upOrDown, percentChange, function, vol):
     vegas = []
     gammas = []
     thetas = []
+    values = []
     rate = 0.015
     q = 0
     strike = df['strike']
+    type = df['Call_Put_Flag']
     mat = df['days to expiration']
     for i in range(fre):
         if(upOrDown == 'down' and function == 'linear'):
@@ -60,8 +62,12 @@ def stressTestForOne(df, fre, spot, upOrDown, percentChange, function, vol):
         thetas.append(((1 / (maturity / 365)) * -((spot * vol * np.exp(-q * maturity / 365))) / 2 * np.sqrt(maturity / 365)) * (np.exp((-d1 ** 2) / 2)) / np.sqrt(2 * 3.14159) - rate * strike * np.exp( -rate * maturity / 365) * norm.cdf(d2) + q * spot * np.exp(rate * maturity / 365) * norm.cdf(d1))
         gammas.append(((np.exp(-q * maturity / 365) / (spot * vol * np.sqrt(maturity / 365))) * 1 / np.sqrt(2 * np.pi)) * np.exp((-d1 ** 2) / 2))
         vegas.append((((spot * np.exp(-q * maturity / 365)) * np.sqrt(maturity / 365)) / 100) * 1 / np.sqrt(2 * 3.14159) * np.exp((-d1 ** 2) / 2))
+        if type == 'Call':
+            values.append(spot*(np.exp(-q * maturity / 365))*norm.cdf(d1)-(np.exp(-rate * maturity / 365))*strike*norm.cdf(d2))
+        else:
+            values.append((np.exp(-rate * maturity / 365))*norm.cdf(-d2)-spot*(np.exp(-q * maturity / 365))*norm.cdf(-d1))
 
-    return spots, deltas, vegas, gammas, thetas
+    return spots, deltas, vegas, gammas, thetas, values
 
 
 def stressTest(df, fre, spot, upOrDown, percentChange, function,  vol):
@@ -70,14 +76,16 @@ def stressTest(df, fre, spot, upOrDown, percentChange, function,  vol):
     vegas = [0 for i in range(fre)]
     gammas = [0 for i in range(fre)]
     thetas = [0 for i in range(fre)]
+    values = [0 for i in range(fre)]
     for i in range(len(df)):
-        s, d, v, g, t = stressTestForOne(df.iloc[i], fre, spot, upOrDown, percentChange, function,  vol)
+        s, d, v, g, t, value= stressTestForOne(df.iloc[i], fre, spot, upOrDown, percentChange, function,  vol)
         spots = [spots[j]+s[j] for j in range(0, len(spots))]
         deltas = [deltas[j]+d[j] for j in range(0, len(deltas))]
         vegas = [vegas[j]+v[j] for j in range(0, len(vegas))]
         gammas = [gammas[j]+g[j] for j in range(0, len(gammas))]
         thetas = [thetas[j]+t[j] for j in range(0, len(thetas))]
-    return spots, deltas, vegas, gammas, thetas
+        values = [values[j]+value[j] for j in range(0, len(values))]
+    return spots, deltas, vegas, gammas, thetas, values
 
 
 def update_graph(xvalues, yvalues, xtitle, ytitle):
@@ -197,6 +205,15 @@ layout = [
         style={"marginTop": "5px"},
         ),
     ),
+
+    html.Div(
+        html.Div(
+            [Graph("Value vs Price", "value_vs_price"),
+        ],
+        className="row",
+        style={"marginTop": "5px"},
+        ),
+    ),
     ]
 
 
@@ -217,7 +234,7 @@ def max_limit_callback(df):
                Input("options_df", "children")],)
 def delta_vs_price_callback(fre, upOrDown, percentChange, function, volpct, df):
     df = pd.read_json(df, orient="split")
-    spot = df['Spot Price'].sum()
+    spot = df['Spot Price'][0]
     result_st = stressTest(df, fre, spot, upOrDown, percentChange, function, volpct)
     print(result_st[0])
     print(result_st[1])
@@ -232,7 +249,7 @@ def delta_vs_price_callback(fre, upOrDown, percentChange, function, volpct, df):
                Input("options_df", "children")], )
 def gamma_vs_price_callback(fre, upOrDown, percentChange, function, volpct, df):
     df = pd.read_json(df, orient="split")
-    spot = df['Spot Price'].sum()
+    spot = df['Spot Price'][0]
     result_st = stressTest(df, fre, spot, upOrDown, percentChange, function, volpct)
     return update_graph(result_st[0], result_st[2], 'Price', 'Gamma')
 
@@ -245,7 +262,7 @@ def gamma_vs_price_callback(fre, upOrDown, percentChange, function, volpct, df):
                Input("options_df", "children")], )
 def theta_vs_price_callback(fre, upOrDown, percentChange, function, volpct, df):
     df = pd.read_json(df, orient="split")
-    spot = df['Spot Price'].sum()
+    spot = df['Spot Price'][0]
     result_st = stressTest(df, fre, spot, upOrDown, percentChange, function, volpct)
     return update_graph(result_st[0], result_st[3], 'Price', 'Theta')
 
@@ -258,6 +275,19 @@ def theta_vs_price_callback(fre, upOrDown, percentChange, function, volpct, df):
                Input("options_df", "children")], )
 def vega_vs_price_callback(fre, upOrDown, percentChange, function, volpct, df):
     df = pd.read_json(df, orient="split")
-    spot = df['Spot Price'].sum()
+    spot = df['Spot Price'][0]
     result_st = stressTest(df, fre, spot, upOrDown, percentChange, function, volpct)
     return update_graph(result_st[0], result_st[4], 'Price', 'Veta')
+
+@app.callback(Output('value_vs_price', 'figure'),
+              [Input('frequency_input', 'value'),
+               Input('direction_dropdown', 'value'),
+               Input('percentchange_dropdown', 'value'),
+               Input('method_dropdown', 'value'),
+               Input('volpct_dropdown', 'value'),
+               Input("options_df", "children")], )
+def vega_vs_price_callback(fre, upOrDown, percentChange, function, volpct, df):
+    df = pd.read_json(df, orient="split")
+    spot = df['Spot Price'][0]
+    result_st = stressTest(df, fre, spot, upOrDown, percentChange, function, volpct)
+    return update_graph(result_st[0], result_st[5], 'Price', 'Value')
