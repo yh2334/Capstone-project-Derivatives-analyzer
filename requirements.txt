@@ -10,7 +10,7 @@ decorator==4.3.0
 Flask==0.12
 Flask-Caching==1.2.0
 Flask-Compress==1.4.0
-Flask-Cors==3.0.6
+Flask-Cors==3.0.9
 gunicorn==19.9.0
 idna==2.7
 ipython==6.5.0
