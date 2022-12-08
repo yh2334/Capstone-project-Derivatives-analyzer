@@ -1,4 +1,4 @@
-certifi==2019.3.9
+certifi==2022.12.7
 click==6.7
 dash==0.41.0
 dash-core-components==0.46.0
